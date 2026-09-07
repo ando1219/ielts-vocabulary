@@ -371,48 +371,13 @@ function isChineseText(value){
 }
 
 function meaningMatches(input,meanings){
- const normalized=normalizeMeaning(input);
- if(!normalized)return false;
+ const userInput=normalizeMeaning(input);
+ if(!userInput)return false;
 
- const normalizedMeanings=meanings
-   .map(m=>normalizeMeaning(m))
-   .filter(Boolean);
-
- // ① 标准化完全匹配
- if(normalizedMeanings.includes(normalized))return true;
-
- // ② 同义/近义词组匹配
- const inputGroup=meaningSynonymMap.get(normalized);
- if(inputGroup){
-   for(const meaning of normalizedMeanings){
-     if(inputGroup.has(meaning))return true;
-   }
- }
-
- // ③ 保守模糊匹配：
- // 只针对中文释义；英文/数字等不进行模糊猜测。
- // 2~3 字：编辑距离必须 <= 1
- // 4 字及以上：相似度 >= 0.75 且长度差不能太大
- if(isChineseText(normalized)){
-   for(const meaning of normalizedMeanings){
-     if(!isChineseText(meaning))continue;
-     const maxLen=Math.max(normalized.length,meaning.length);
-     const minLen=Math.min(normalized.length,meaning.length);
-     const similarity=characterSimilarity(normalized,meaning);
-
-     if(maxLen<=3 && levenshteinDistance(normalized,meaning)<=1){
-       return true;
-     }
-
-     if(maxLen>=4 && minLen>=3 &&
-        Math.abs(normalized.length-meaning.length)<=2 &&
-        similarity>=0.75){
-       return true;
-     }
-   }
- }
-
- return false;
+ return meanings.some(databaseMeaning=>{
+   const normalizedDatabaseMeaning=normalizeMeaning(databaseMeaning);
+   return normalizedDatabaseMeaning.includes(userInput);
+ });
 }
 function showToast(message,type,duration=1200){
  clearTimeout(toastTimer);toast.textContent=message;toast.className="toast "+type+" show";
