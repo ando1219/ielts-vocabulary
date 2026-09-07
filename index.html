@@ -429,7 +429,10 @@ function renderComplete(){
 async function submitAnswer(){
  if(!currentCategory||currentIndex>=WORD_DATA[currentCategory].length)return;
  const item=WORD_DATA[currentCategory][currentIndex],
-       posCorrect=posSelect.value===item.pos,
+       selectedPos=posSelect.value,
+       expectedPos=item.pos||"",
+       expectedPositions=expectedPos.split("/").map(p=>p.trim()).filter(Boolean),
+       posCorrect=expectedPositions.includes(selectedPos),
        meaningCorrect=meaningMatches(meaningInput.value,item.meaning);
 
  const isFirstAttempt=!firstAttemptRecorded;
