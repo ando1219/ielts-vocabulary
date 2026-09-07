@@ -127,6 +127,7 @@ const posSelect=document.getElementById("posSelect"),meaningInput=document.getEl
 const submitBtn=document.getElementById("submitBtn"),answerBtn=document.getElementById("answerBtn"),restartBtn=document.getElementById("restartBtn"),toast=document.getElementById("toast");
 const loginTab=document.getElementById("loginTab"),registerTab=document.getElementById("registerTab"),authTitle=document.getElementById("authTitle"),authSubtitle=document.getElementById("authSubtitle"),authForm=document.getElementById("authForm"),authEmail=document.getElementById("authEmail"),authPassword=document.getElementById("authPassword"),authSubmit=document.getElementById("authSubmit"),authError=document.getElementById("authError"),authSetup=document.getElementById("authSetup"),accountEmail=document.getElementById("accountEmail"),logoutBtn=document.getElementById("logoutBtn"),syncStatus=document.getElementById("syncStatus");
 
+let firstAttemptRecorded=false;
 let currentCategory=null,currentIndex=0,correctCount=0,skippedCount=0,toastTimer=null,nextTimer=null,currentSession=null,isRegisterMode=false,categoryProgressCache=new Map();
 
 function supabaseConfigured(){return SUPABASE_URL.startsWith("https://")&&!SUPABASE_URL.includes("YOUR_SUPABASE")&&SUPABASE_PUBLISHABLE_KEY&&!SUPABASE_PUBLISHABLE_KEY.includes("YOUR_SUPABASE")}
@@ -412,6 +413,7 @@ async function openCategory(category){
  try{const state=await loadState(category);currentIndex=state.currentIndex;correctCount=state.correctCount;skippedCount=state.skippedCount;homeView.classList.add("hidden");practiceView.classList.remove("hidden");renderThemeMenu();if(state.completed){renderComplete()}else renderQuestion()}catch(e){showToast("同步失败："+e.message,"error",1800)}
 }
 function renderQuestion(){
+firstAttemptRecorded=false;
  const items=WORD_DATA[currentCategory];if(currentIndex>=items.length){renderComplete();return}
  questionView.classList.remove("hidden");completeView.classList.add("hidden");
  const item=items[currentIndex];progress.textContent=`第 ${currentIndex+1} / ${items.length} 题`;word.textContent=item.word;phonetic.textContent=item.phonetic||"—";
@@ -426,18 +428,36 @@ function renderComplete(){
 }
 async function submitAnswer(){
  if(!currentCategory||currentIndex>=WORD_DATA[currentCategory].length)return;
- const item=WORD_DATA[currentCategory][currentIndex],posCorrect=posSelect.value===item.pos,meaningCorrect=meaningMatches(meaningInput.value,item.meaning);
+ const item=WORD_DATA[currentCategory][currentIndex],
+       posCorrect=posSelect.value===item.pos,
+       meaningCorrect=meaningMatches(meaningInput.value,item.meaning);
+
+ const isFirstAttempt=!firstAttemptRecorded;
+ if(isFirstAttempt)firstAttemptRecorded=true;
+
  if(posCorrect&&meaningCorrect){
   submitBtn.disabled=true;answerBtn.disabled=true;
-  try{await saveWordProgress(currentCategory,item,"correct");correctCount++;currentIndex++;showToast("✓ 回答正确","success",1200);nextTimer=setTimeout(renderQuestion,1000)}catch(e){submitBtn.disabled=false;answerBtn.disabled=false;showToast("保存失败："+e.message,"error",1800)}
- }else showToast("失败：词性或意思不对，请重试","error",1200);
+  try{
+   await saveWordProgress(currentCategory,item,"correct");
+   if(isFirstAttempt)correctCount++;
+   currentIndex++;
+   showToast("✓ 回答正确","success",1200);
+   nextTimer=setTimeout(renderQuestion,1000);
+  }catch(e){
+   submitBtn.disabled=false;answerBtn.disabled=false;
+   showToast("保存失败："+e.message,"error",1800);
+  }
+ }else{
+  showToast("失败：词性或意思不对，请重试","error",1200);
+ }
 }
 async function showAnswer(){
  if(!currentCategory||currentIndex>=WORD_DATA[currentCategory].length)return;
- clearTimeout(nextTimer);const item=WORD_DATA[currentCategory][currentIndex];submitBtn.disabled=true;answerBtn.disabled=true;
- try{await saveWordProgress(currentCategory,item,"skipped");skippedCount++;currentIndex++;showToast(`答案：${item.pos||"未标注"} ${item.meaning.join("；")}`,"success",1200);nextTimer=setTimeout(renderQuestion,1200)}catch(e){submitBtn.disabled=false;answerBtn.disabled=false;showToast("保存失败："+e.message,"error",1800)}
+ clearTimeout(nextTimer);
+ const item=WORD_DATA[currentCategory][currentIndex];
+ showToast(`答案：${item.pos||"未标注"} ${item.meaning.join("；")}`,"success",2200);
 }
-async function restartCategory(){clearTimeout(nextTimer);restartBtn.disabled=true;try{await clearCategoryProgress(currentCategory);currentIndex=0;correctCount=0;skippedCount=0;renderQuestion();showToast("已重新开始","success",1000)}catch(e){showToast("重置失败："+e.message,"error",1800)}finally{restartBtn.disabled=false}}
+async function restartCategory(){clearTimeout(nextTimer);restartBtn.disabled=true;try{await clearCategoryProgress(currentCategory);currentIndex=0;correctCount=0;skippedCount=0;firstAttemptRecorded=false;renderQuestion();showToast("已重新开始","success",1000)}catch(e){showToast("重置失败："+e.message,"error",1800)}finally{restartBtn.disabled=false}}
 
 themeSwitch.addEventListener("click",e=>{e.stopPropagation();themeMenu.classList.toggle("open")});
 document.addEventListener("click",e=>{if(!e.target.closest(".theme-switch-wrap"))themeMenu.classList.remove("open")});
