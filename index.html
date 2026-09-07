@@ -154,8 +154,14 @@ async function dbRequest(path,options={}){
  if(res.status===401&&session.refresh_token){
    if(await refreshSession()){res=await fetch(SUPABASE_URL+"/rest/v1/"+path,{...options,headers:{...apiHeaders(currentSession.access_token),...(options.headers||{})}})}
  }
- if(!res.ok){let data=null;try{data=await res.json()}catch(e){}throw new Error(data?.message||data?.hint||data?.details||"数据库请求失败")}
- if(res.status===204)return null;return await res.json();
+ const responseText=await res.text();
+ if(!res.ok){
+   let data=null;
+   try{data=responseText?JSON.parse(responseText):null}catch(e){}
+   throw new Error(data?.message||data?.hint||data?.details||responseText||"数据库请求失败");
+ }
+ if(!responseText.trim())return null;
+ try{return JSON.parse(responseText)}catch(e){throw new Error("数据库返回的数据格式异常")}
 }
 async function fetchCategoryProgress(category){
  const userId=currentSession.user?.id||currentSession.user_id;if(!userId)throw new Error("账号信息异常，请重新登录");
@@ -451,7 +457,7 @@ function renderComplete(){
  const total=WORD_DATA[currentCategory].length,accuracy=total?Math.round(correctCount/total*100):0;
  questionView.classList.add("hidden");completeView.classList.remove("hidden");
  document.getElementById("correctStat").textContent=correctCount;document.getElementById("totalStat").textContent=total;
- document.getElementById("accuracyStat").textContent=accuracy+"%";document.getElementById("skippedStat").textContent=skippedCount;saveState();
+ document.getElementById("accuracyStat").textContent=accuracy+"%";document.getElementById("skippedStat").textContent=skippedCount;
 }
 async function submitAnswer(){
  if(!currentCategory||currentIndex>=WORD_DATA[currentCategory].length)return;
